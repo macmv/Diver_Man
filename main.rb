@@ -27,7 +27,7 @@ end
 	
 class Board
 
-	def initialize
+	def initialize(images, level)
 		@grid = []
 		(HEIGHT / BLOCKSIZE).times do |y|
 			new_row = []
@@ -51,21 +51,21 @@ class Board
 			new_y = rand(HEIGHT / BLOCKSIZE)
 			@grid[new_y][new_x] = Coin.new new_x, new_y
 		end
-		@grid = YAML::load(File.read("data/boards.yaml"))
-		@grid[10][10] = Wall.new 10, 10
-		#File.open("data/boards.yaml", "w") { |f| f.write @grid.to_yaml }
-		@images = {:water => Gosu::Image.new("images/water.png"),
-				   :wall  => Gosu::Image.new("images/wall.png"),
-				   :coin  => Gosu::Image.new("images/coin.png"),
-				   :spike => Gosu::Image.new("images/spike.png")}
+		@grid = YAML::load(File.read("data/boards.yaml"))[level]
+		#File.open("data/boards.yaml", "w") { |f| f.write (Array.new + [new_grid, @grid]).to_yaml }
+		@images = images
 	end
 
 	def draw
+		if @grid == nil
+			return true
+		end
 		@grid.each do |row|
 			row.each do |item|
 				item.draw @images[item.type]				
 			end
 		end
+		false
 	end
 
 	def got_coin(diver)
@@ -152,23 +152,23 @@ class Diver
 	end
 
 	def move_up
-		@y -= 0.125
-		@y += 0.125 if @y < 0
+		@y -= 0.0625
+		@y += 0.0625 if @y < 0
 	end
 
 	def move_down
-		@y += 0.125
-		@y -= 0.125 if @y + 1 > HEIGHT / BLOCKSIZE
+		@y += 0.0625
+		@y -= 0.0625 if @y + 1 > HEIGHT / BLOCKSIZE
 	end
 
 	def move_right
-		@x += 0.125
-		@x -= 0.125 if @x + 1 > WIDTH / BLOCKSIZE
+		@x += 0.0625
+		@x -= 0.0625 if @x + 1 > WIDTH / BLOCKSIZE
 	end
 
 	def move_left
-		@x -= 0.125
-		@x += 0.125 if @x < 0
+		@x -= 0.0625
+		@x += 0.0625 if @x < 0
 	end
 
 end
@@ -255,67 +255,102 @@ public
 
 class Screen < Gosu::Window
 
-	def initialize
+	def initialize(level)
 		super WIDTH, HEIGHT, false
 		self.caption = "Diver Man"
-		@board = Board.new
+		@images = {:water => Gosu::Image.new("images/water.png"),
+					:wall  => Gosu::Image.new("images/wall.png"),
+					:coin  => Gosu::Image.new("images/coin.png"),
+					:spike => Gosu::Image.new("images/spike.png")}
+		@board = Board.new @images, level
 		@diver = Diver.new
 		@score = 0
-		@font = Gosu::Font.new 20
+		@font  = Gosu::Font.new 20
+		@big_font = Gosu::Font.new 140
+		@level = level
+		@game_end = false
+		@statice == :home
 	end
 
 	def draw
-		@board.draw
-		@diver.draw
-		@font.draw("Score: #{@score}", 5, 5, 0, 1, 1, 0xff_ffcc00)
+		failed_draw = @board.draw
+		if failed_draw
+			@big_font.draw_rel("YOU WON!!!!", WIDTH / 2, HEIGHT / 2, 0, 0.5, 0.5, 1, 1, 0xff_00ffff)
+			@game_end = true
+		else
+			@diver.draw
+			@font.draw("Score: #{@score}", 5, 5, 0, 1, 1, 0xff_ffcc00)
+			@font.draw("Level: #{@level + 1}", 5, 25, 0, 1, 1, 0xff_ffcc00)
+		end
 	end
 
 	def update
-		if Gosu::button_down? Gosu::KbW
-			@diver.move_up
-			tuching_arr = @diver.block_tuching(@board)
-			if tuching_arr.include? :wall
-				@diver.move_down
-			end
+		if @game_end
+			sleep 2
+			exit
 		end
-		if Gosu::button_down? Gosu::KbA
-			@diver.move_left
-			tuching_arr = @diver.block_tuching(@board)
-			if tuching_arr.include? :wall
-				@diver.move_right
-			end
+		if Gosu::button_down? Gosu::KbH
+			@statice = :home
+		end
+		if Gosu::button_down? Gosu::KbL
+			@statice = :level_editor
 		end
 		if Gosu::button_down? Gosu::KbS
-			@diver.move_down
-			tuching_arr = @diver.block_tuching(@board)
-			if tuching_arr.include? :wall
+			@statice = :in_game
+		end
+		if @statice == :in_game
+			if Gosu::button_down? Gosu::KbW
 				@diver.move_up
+				tuching_arr = @diver.block_tuching(@board)
+				if tuching_arr.include? :wall
+					@diver.move_down
+				end
 			end
-		end
-		if Gosu::button_down? Gosu::KbD
-			@diver.move_right
-			tuching_arr = @diver.block_tuching(@board)
-			if tuching_arr.include? :wall
+			if Gosu::button_down? Gosu::KbA
 				@diver.move_left
+				tuching_arr = @diver.block_tuching(@board)
+				if tuching_arr.include? :wall
+					@diver.move_right
+				end
 			end
+			if Gosu::button_down? Gosu::KbS
+				@diver.move_down
+				tuching_arr = @diver.block_tuching(@board)
+				if tuching_arr.include? :wall
+					@diver.move_up
+				end
+			end
+			if Gosu::button_down? Gosu::KbD
+				@diver.move_right
+				tuching_arr = @diver.block_tuching(@board)
+				if tuching_arr.include? :wall
+					@diver.move_left
+				end
+			end
+			tuching_arr = @diver.block_tuching(@board)
+			if tuching_arr.include? :coin
+				@score += @board.got_coin(@diver)
+			end
+			if tuching_arr.include? :spike
+				initialize @level
+			end
+			if @score >= 3
+				initialize @level + 1
+			end
+			if Gosu::button_down? Gosu::KbR
+				initialize @level
+			end
+		elsif @statice == :level_editor
+
 		end
-		tuching_arr = @diver.block_tuching(@board)
-		if tuching_arr.include? :coin
-			@score += @board.got_coin(@diver)
-		end
-		if tuching_arr.include? :spike
-			initialize
-		end
-		if @score >= 3
-			initialize
-		end
-		if Gosu::button_down? Gosu::KbR
-			initialize
-		end
+	end
+
+	def needs_cursor?
+		true
 	end
 
 end
 
 end
 
-DiverMan::Screen.new.show
+DiverMan::Screen.new(0).show
