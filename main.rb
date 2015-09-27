@@ -54,15 +54,25 @@ class Board
 		@grid = YAML::load(File.read("data/boards.yaml"))[level]
 		#File.open("data/boards.yaml", "w") { |f| f.write (Array.new + [new_grid, @grid]).to_yaml }
 		@images = images
+		@new_grid = nil
 	end
 
 	def draw
-		if @grid == nil
-			return true
-		end
-		@grid.each do |row|
-			row.each do |item|
-				item.draw @images[item.type]				
+		if @new_grid != nil
+			@new_grid.each do |row|
+				row.each do |item|
+					item.draw @images[item.type]				
+				end
+			end
+			return nil
+		else
+			if @grid == nil
+				return true
+			end
+			@grid.each do |row|
+				row.each do |item|
+					item.draw @images[item.type]				
+				end
 			end
 		end
 		false
@@ -106,6 +116,38 @@ class Board
 			end
 		end
 		return_score
+	end
+
+	def new_level
+		@new_grid = []
+		(HEIGHT / BLOCKSIZE).times do |y|
+			new_row = []
+			(WIDTH / BLOCKSIZE).times do |x|
+				new_row.push Water.new(x, y)
+			end
+			@new_grid.push new_row
+		end
+	end
+
+	def click(x, y)
+		if @new_grid[y][x].type == :water
+			puts :new_wall
+			@new_grid[y][x] = Wall.new x, y
+		elsif @new_grid[y][x].type == :wall
+			puts :new_coin
+			@new_grid[y][x] = Coin.new x, y
+		elsif @new_grid[y][x].type == :coin
+			puts :new_spike
+			@new_grid[y][x] = Spike.new x, y, 0
+		elsif @new_grid[y][x].type == :spike
+			puts :rotate_spike
+			@new_grid[y][x].turn
+		end
+	end
+
+	def save_level
+		@grid = @new_grid
+		@new_grid = nil
 	end
 
 	def [](num)
@@ -245,6 +287,11 @@ class Spike < Block
 		image.draw_rot(@x * BLOCKSIZE + BLOCKSIZE / 2, @y * BLOCKSIZE + BLOCKSIZE / 2, 0, @direction * 90)
 	end
 
+	def turn
+		@direction += 1
+		@direction = 0 if @direction >= 4
+	end
+
 	def type
 		:spike
 	end
@@ -262,22 +309,33 @@ class Screen < Gosu::Window
 					:wall  => Gosu::Image.new("images/wall.png"),
 					:coin  => Gosu::Image.new("images/coin.png"),
 					:spike => Gosu::Image.new("images/spike.png")}
-		@board = Board.new @images, level
-		@diver = Diver.new
-		@score = 0
-		@font  = Gosu::Font.new 20
-		@big_font = Gosu::Font.new 140
-		@level = level
-		@game_end = false
-		@statice == :home
+		@board       = Board.new @images, level
+		@diver       = Diver.new
+		@score       = 0
+		@font        = Gosu::Font.new 20
+		@big_font    = Gosu::Font.new 140
+		@level       = level
+		@game_end    = false
+		@statice     = :home
+		@home_screen = Gosu::Image.new "images/home screen.png"
+		@ms_down     = false
 	end
 
 	def draw
-		failed_draw = @board.draw
-		if failed_draw
-			@big_font.draw_rel("YOU WON!!!!", WIDTH / 2, HEIGHT / 2, 0, 0.5, 0.5, 1, 1, 0xff_00ffff)
-			@game_end = true
-		else
+		if @statice == :home
+			@home_screen.draw(0, 0, 0)
+		elsif @statice == :in_game
+			failed_draw = @board.draw
+			if failed_draw
+				@big_font.draw_rel("YOU WON!!!!", WIDTH / 2, HEIGHT / 2, 0, 0.5, 0.5, 1, 1, 0xff_00ffff)
+				@game_end = true
+			else
+				@diver.draw
+				@font.draw("Score: #{@score}", 5, 5, 0, 1, 1, 0xff_ffcc00)
+				@font.draw("Level: #{@level + 1}", 5, 25, 0, 1, 1, 0xff_ffcc00)
+			end
+		elsif @statice == :level_editor
+			@board.draw
 			@diver.draw
 			@font.draw("Score: #{@score}", 5, 5, 0, 1, 1, 0xff_ffcc00)
 			@font.draw("Level: #{@level + 1}", 5, 25, 0, 1, 1, 0xff_ffcc00)
@@ -289,16 +347,18 @@ class Screen < Gosu::Window
 			sleep 2
 			exit
 		end
-		if Gosu::button_down? Gosu::KbH
+		if Gosu::button_down?(Gosu::KbH) && Gosu::button_down?(Gosu::KbLeftControl)
 			@statice = :home
 		end
-		if Gosu::button_down? Gosu::KbL
+		if Gosu::button_down?(Gosu::KbL) && Gosu::button_down?(Gosu::KbLeftControl)
 			@statice = :level_editor
+			@board.new_level
 		end
-		if Gosu::button_down? Gosu::KbS
+		if Gosu::button_down?(Gosu::KbS) && Gosu::button_down?(Gosu::KbLeftControl)
 			@statice = :in_game
 		end
-		if @statice == :in_game
+		if @statice == :home
+		elsif @statice == :in_game
 			if Gosu::button_down? Gosu::KbW
 				@diver.move_up
 				tuching_arr = @diver.block_tuching(@board)
@@ -341,7 +401,23 @@ class Screen < Gosu::Window
 				initialize @level
 			end
 		elsif @statice == :level_editor
+			if Gosu::button_down?(Gosu::KbReturn) && Gosu::button_down?(Gosu::KbLeftControl)
+				@board.save_level
+				@statice = :home
+			end
+			if Gosu::button_down?(Gosu::MsLeft) && @ms_down == false
+				puts "click"
+				click_x = (mouse_x / BLOCKSIZE).to_i
+				click_y = (mouse_y / BLOCKSIZE).to_i
+				@board.click(click_x, click_y)
+				@ms_down = true
+			end
+		end
+	end
 
+	def button_up(id)
+		if id == Gosu::MsLeft
+			@ms_down = false
 		end
 	end
 
