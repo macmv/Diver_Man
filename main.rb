@@ -52,7 +52,7 @@ class Board
 			@grid[new_y][new_x] = Coin.new new_x, new_y
 		end
 		@grid = YAML::load(File.read("data/boards.yaml"))[level]
-		#File.open("data/boards.yaml", "w") { |f| f.write (Array.new + [new_grid, @grid]).to_yaml }
+		#File.open("data/boards.yaml", "w") { |f| f.write (Array.new + [@grid]).to_yaml }
 		@images = images
 		@new_grid = nil
 	end
@@ -142,6 +142,10 @@ class Board
 		elsif @new_grid[y][x].type == :spike
 			puts :rotate_spike
 			@new_grid[y][x].turn
+		end
+		if @new_grid[y][x].type == :spike && @new_grid[y][x].direction > 3
+			puts :new_water
+			@new_grid[y][x] = Water.new x, y
 		end
 	end
 
@@ -281,6 +285,8 @@ end
 
 class Spike < Block
 
+	attr_reader :direction
+
 	def initialize(x, y, direction)
 		super x, y
 		@direction = direction
@@ -292,7 +298,6 @@ class Spike < Block
 
 	def turn
 		@direction += 1
-		@direction = 0 if @direction >= 4
 	end
 
 	def type
