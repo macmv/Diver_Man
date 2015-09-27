@@ -157,6 +157,10 @@ class Board
 		@new_grid = nil
 	end
 
+	def set_level(level)
+		@grid = YAML::load(File.read("data/boards.yaml"))[level]
+	end
+
 	def [](num)
 		@grid[num]
 	end
@@ -400,13 +404,17 @@ class Screen < Gosu::Window
 				@score += @board.got_coin(@diver)
 			end
 			if tuching_arr.include? :spike
-				initialize @level
+				@board.set_level @level
+				@score = 0
 			end
 			if @score >= 3
-				initialize @level + 1
+				@level += 1
+				@board.set_level @level
+				@score = 0
 			end
 			if Gosu::button_down? Gosu::KbR
-				initialize @level
+				@board.set_level @level
+				@score = 0
 			end
 		elsif @statice == :level_editor
 			if Gosu::button_down?(Gosu::KbReturn) && Gosu::button_down?(Gosu::KbLeftControl)
