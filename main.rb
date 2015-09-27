@@ -147,6 +147,9 @@ class Board
 
 	def save_level
 		@grid = @new_grid
+		all_levels = YAML::load(File.read("data/boards.yaml"))
+		all_levels.push @grid
+		File.open("data/boards.yaml", "w") { |f| f.write all_levels.to_yaml }
 		@new_grid = nil
 	end
 
