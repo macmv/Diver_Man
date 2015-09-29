@@ -2,6 +2,11 @@
 
 require "gosu"
 require "yaml"
+require "trollop"
+
+$opts = Trollop::options do
+	opt :fullscreen, "Go fullscreen"
+end
 
 def is_dot_o?(num)
 	num.to_i.to_f == num
@@ -315,7 +320,7 @@ public
 class Screen < Gosu::Window
 
 	def initialize(level)
-		super WIDTH, HEIGHT, false
+		super WIDTH, HEIGHT, $opts[:fullscreen]
 		self.caption = "Diver Man"
 		@images = {:water => Gosu::Image.new("images/water.png"),
 					:wall  => Gosu::Image.new("images/wall.png"),
@@ -406,15 +411,26 @@ class Screen < Gosu::Window
 			if tuching_arr.include? :spike
 				@board.set_level @level
 				@score = 0
+				@diver = Diver.new
 			end
 			if @score >= 3
 				@level += 1
 				@board.set_level @level
 				@score = 0
+				@diver = Diver.new
 			end
 			if Gosu::button_down? Gosu::KbR
 				@board.set_level @level
 				@score = 0
+				@diver = Diver.new
+			end
+		elsif @statice == :level_editor_select
+			if Gosu::button_down?(Gosu::MsLeft) && @ms_down == false
+				puts "click"
+				click_x = (mouse_x / BLOCKSIZE).to_i
+				click_y = (mouse_y / BLOCKSIZE).to_i
+				@board.click(click_x, click_y)
+				@ms_down = true
 			end
 		elsif @statice == :level_editor
 			if Gosu::button_down?(Gosu::KbReturn) && Gosu::button_down?(Gosu::KbLeftControl)
